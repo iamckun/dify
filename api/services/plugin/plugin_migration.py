@@ -5,10 +5,11 @@ import time
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 import click
+import sqlalchemy as sa
 import tqdm
 from flask import Flask, current_app
 from sqlalchemy.orm import Session
@@ -32,7 +33,7 @@ excluded_providers = ["time", "audio", "code", "webscraper"]
 
 class PluginMigration:
     @classmethod
-    def extract_plugins(cls, filepath: str, workers: int) -> None:
+    def extract_plugins(cls, filepath: str, workers: int):
         """
         Migrate plugin.
         """
@@ -54,7 +55,7 @@ class PluginMigration:
 
         thread_pool = ThreadPoolExecutor(max_workers=workers)
 
-        def process_tenant(flask_app: Flask, tenant_id: str) -> None:
+        def process_tenant(flask_app: Flask, tenant_id: str):
             with flask_app.app_context():
                 nonlocal handled_tenant_count
                 try:
@@ -78,7 +79,7 @@ class PluginMigration:
                             )
                         )
                 except Exception:
-                    logger.exception(f"Failed to process tenant {tenant_id}")
+                    logger.exception("Failed to process tenant %s", tenant_id)
 
         futures = []
 
@@ -98,6 +99,7 @@ class PluginMigration:
                     datetime.timedelta(hours=1),
                 ]
 
+                tenant_count = 0
                 for test_interval in test_intervals:
                     tenant_count = (
                         session.query(Tenant.id)
@@ -136,7 +138,7 @@ class PluginMigration:
                     try:
                         tenants.append(tenant_id)
                     except Exception:
-                        logger.exception(f"Failed to process tenant {tenant_id}")
+                        logger.exception("Failed to process tenant %s", tenant_id)
                         continue
 
                     futures.append(
@@ -197,7 +199,7 @@ class PluginMigration:
         """
         with Session(db.engine) as session:
             rs = session.execute(
-                db.text(f"SELECT DISTINCT {column} FROM {table} WHERE tenant_id = :tenant_id"), {"tenant_id": tenant_id}
+                sa.text(f"SELECT DISTINCT {column} FROM {table} WHERE tenant_id = :tenant_id"), {"tenant_id": tenant_id}
             )
             result = []
             for row in rs:
@@ -254,7 +256,7 @@ class PluginMigration:
                 return []
 
             agent_app_model_config_ids = [
-                app.app_model_config_id for app in apps if app.is_agent or app.mode == AppMode.AGENT_CHAT.value
+                app.app_model_config_id for app in apps if app.is_agent or app.mode == AppMode.AGENT_CHAT
             ]
 
             rs = session.query(AppModelConfig).where(AppModelConfig.id.in_(agent_app_model_config_ids)).all()
@@ -273,13 +275,13 @@ class PluginMigration:
                                     result.append(ToolProviderID(tool_entity.provider_id).plugin_id)
 
                             except Exception:
-                                logger.exception(f"Failed to process tool {tool}")
+                                logger.exception("Failed to process tool %s", tool)
                                 continue
 
             return result
 
     @classmethod
-    def _fetch_plugin_unique_identifier(cls, plugin_id: str) -> Optional[str]:
+    def _fetch_plugin_unique_identifier(cls, plugin_id: str) -> str | None:
         """
         Fetch plugin unique identifier using plugin id.
         """
@@ -290,7 +292,7 @@ class PluginMigration:
         return plugin_manifest[0].latest_package_identifier
 
     @classmethod
-    def extract_unique_plugins_to_file(cls, extracted_plugins: str, output_file: str) -> None:
+    def extract_unique_plugins_to_file(cls, extracted_plugins: str, output_file: str):
         """
         Extract unique plugins.
         """
@@ -301,7 +303,7 @@ class PluginMigration:
         plugins: dict[str, str] = {}
         plugin_ids = []
         plugin_not_exist = []
-        logger.info(f"Extracting unique plugins from {extracted_plugins}")
+        logger.info("Extracting unique plugins from %s", extracted_plugins)
         with open(extracted_plugins) as f:
             for line in f:
                 data = json.loads(line)
@@ -318,7 +320,7 @@ class PluginMigration:
                 else:
                     plugin_not_exist.append(plugin_id)
             except Exception:
-                logger.exception(f"Failed to fetch plugin unique identifier for {plugin_id}")
+                logger.exception("Failed to fetch plugin unique identifier for %s", plugin_id)
                 plugin_not_exist.append(plugin_id)
 
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -327,7 +329,7 @@ class PluginMigration:
         return {"plugins": plugins, "plugin_not_exist": plugin_not_exist}
 
     @classmethod
-    def install_plugins(cls, extracted_plugins: str, output_file: str, workers: int = 100) -> None:
+    def install_plugins(cls, extracted_plugins: str, output_file: str, workers: int = 100):
         """
         Install plugins.
         """
@@ -339,7 +341,7 @@ class PluginMigration:
 
         # use a fake tenant id to install all the plugins
         fake_tenant_id = uuid4().hex
-        logger.info(f"Installing {len(plugins['plugins'])} plugin instances for fake tenant {fake_tenant_id}")
+        logger.info("Installing %s plugin instances for fake tenant %s", len(plugins["plugins"]), fake_tenant_id)
 
         thread_pool = ThreadPoolExecutor(max_workers=workers)
 
@@ -347,8 +349,8 @@ class PluginMigration:
         if response.get("failed"):
             plugin_install_failed.extend(response.get("failed", []))
 
-        def install(tenant_id: str, plugin_ids: list[str]) -> None:
-            logger.info(f"Installing {len(plugin_ids)} plugins for tenant {tenant_id}")
+        def install(tenant_id: str, plugin_ids: list[str]):
+            logger.info("Installing %s plugins for tenant %s", len(plugin_ids), tenant_id)
             # fetch plugin already installed
             installed_plugins = manager.list_plugins(tenant_id)
             installed_plugins_ids = [plugin.plugin_id for plugin in installed_plugins]
@@ -408,7 +410,7 @@ class PluginMigration:
 
                 installation = manager.list_plugins(fake_tenant_id)
         except Exception:
-            logger.exception(f"Failed to get installation for tenant {fake_tenant_id}")
+            logger.exception("Failed to get installation for tenant %s", fake_tenant_id)
 
         Path(output_file).write_text(
             json.dumps(
@@ -491,7 +493,9 @@ class PluginMigration:
                         else:
                             failed.append(reverse_map[plugin.plugin_unique_identifier])
                             logger.error(
-                                f"Failed to install plugin {plugin.plugin_unique_identifier}, error: {plugin.message}"
+                                "Failed to install plugin %s, error: %s",
+                                plugin.plugin_unique_identifier,
+                                plugin.message,
                             )
 
                     done = True

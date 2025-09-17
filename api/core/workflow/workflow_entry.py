@@ -2,7 +2,7 @@ import logging
 import time
 import uuid
 from collections.abc import Generator, Mapping, Sequence
-from typing import Any, Optional, cast
+from typing import Any
 
 from configs import dify_config
 from core.app.apps.exc import GenerateTaskStoppedError
@@ -47,8 +47,8 @@ class WorkflowEntry:
         invoke_from: InvokeFrom,
         call_depth: int,
         variable_pool: VariablePool,
-        thread_pool_id: Optional[str] = None,
-    ) -> None:
+        thread_pool_id: str | None = None,
+    ):
         """
         Init workflow entry
         :param tenant_id: tenant id
@@ -67,7 +67,7 @@ class WorkflowEntry:
         # check call depth
         workflow_call_max_depth = dify_config.WORKFLOW_CALL_MAX_DEPTH
         if call_depth > workflow_call_max_depth:
-            raise ValueError("Max workflow call depth {} reached.".format(workflow_call_max_depth))
+            raise ValueError(f"Max workflow call depth {workflow_call_max_depth} reached.")
 
         # init workflow run state
         graph_runtime_state = GraphRuntimeState(variable_pool=variable_pool, start_at=time.perf_counter())
@@ -193,7 +193,13 @@ class WorkflowEntry:
             # run node
             generator = node.run()
         except Exception as e:
-            logger.exception(f"error while running node, {workflow.id=}, {node.id=}, {node.type_=}, {node.version()=}")
+            logger.exception(
+                "error while running node, workflow_id=%s, node_id=%s, node_type=%s, node_version=%s",
+                workflow.id,
+                node.id,
+                node.type_,
+                node.version(),
+            )
             raise WorkflowNodeRunFailedError(node=node, err_msg=str(e))
         return node, generator
 
@@ -255,7 +261,6 @@ class WorkflowEntry:
             environment_variables=[],
         )
 
-        node_cls = cast(type[BaseNode], node_cls)
         # init workflow run state
         node: BaseNode = node_cls(
             id=str(uuid.uuid4()),
@@ -297,11 +302,16 @@ class WorkflowEntry:
 
             return node, generator
         except Exception as e:
-            logger.exception(f"error while running node, {node.id=}, {node.type_=}, {node.version()=}")
+            logger.exception(
+                "error while running node, node_id=%s, node_type=%s, node_version=%s",
+                node.id,
+                node.type_,
+                node.version(),
+            )
             raise WorkflowNodeRunFailedError(node=node, err_msg=str(e))
 
     @staticmethod
-    def handle_special_values(value: Optional[Mapping[str, Any]]) -> Mapping[str, Any] | None:
+    def handle_special_values(value: Mapping[str, Any] | None) -> Mapping[str, Any] | None:
         # NOTE(QuantumGhost): Avoid using this function in new code.
         # Keep values structured as long as possible and only convert to dict
         # immediately before serialization (e.g., JSON serialization) to maintain
@@ -310,7 +320,7 @@ class WorkflowEntry:
         return result if isinstance(result, Mapping) or result is None else dict(result)
 
     @staticmethod
-    def _handle_special_values(value: Any) -> Any:
+    def _handle_special_values(value: Any):
         if value is None:
             return value
         if isinstance(value, dict):
@@ -335,7 +345,7 @@ class WorkflowEntry:
         user_inputs: Mapping[str, Any],
         variable_pool: VariablePool,
         tenant_id: str,
-    ) -> None:
+    ):
         # NOTE(QuantumGhost): This logic should remain synchronized with
         # the implementation of `load_into_variable_pool`, specifically the logic about
         # variable existence checking.
@@ -357,7 +367,7 @@ class WorkflowEntry:
                 raise ValueError(f"Variable key {node_variable} not found in user inputs.")
 
             # environment variable already exist in variable pool, not from user inputs
-            if variable_pool.get(variable_selector):
+            if variable_pool.get(variable_selector) and variable_selector[0] == ENVIRONMENT_VARIABLE_NODE_ID:
                 continue
 
             # fetch variable node id from variable selector

@@ -1,7 +1,6 @@
 import os
 import time
 import uuid
-from typing import Optional
 from unittest.mock import MagicMock
 
 from core.app.entities.app_invoke_entities import InvokeFrom
@@ -29,7 +28,7 @@ def get_mocked_fetch_memory(memory_text: str):
             human_prefix: str = "Human",
             ai_prefix: str = "Assistant",
             max_token_limit: int = 2000,
-            message_limit: Optional[int] = None,
+            message_limit: int | None = None,
         ):
             return memory_text
 
@@ -71,8 +70,8 @@ def init_parameter_extractor_node(config: dict):
         environment_variables=[],
         conversation_variables=[],
     )
-    variable_pool.add(["a", "b123", "args1"], 1)
-    variable_pool.add(["a", "b123", "args2"], 2)
+    variable_pool.add(["a", "args1"], 1)
+    variable_pool.add(["a", "args2"], 2)
 
     node = ParameterExtractorNode(
         id=str(uuid.uuid4()),

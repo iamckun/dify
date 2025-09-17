@@ -2,7 +2,7 @@ import logging
 import os
 import uuid
 from datetime import datetime, timedelta
-from typing import Optional, cast
+from typing import cast
 
 from langsmith import Client
 from langsmith.schemas import RunBase
@@ -65,8 +65,7 @@ class LangSmithDataTrace(BaseTraceInstance):
             self.generate_name_trace(trace_info)
 
     def workflow_trace(self, trace_info: WorkflowTraceInfo):
-        external_trace_id = trace_info.metadata.get("external_trace_id")
-        trace_id = external_trace_id or trace_info.message_id or trace_info.workflow_run_id
+        trace_id = trace_info.trace_id or trace_info.message_id or trace_info.workflow_run_id
         if trace_info.start_time is None:
             trace_info.start_time = datetime.now()
         message_dotted_order = (
@@ -168,13 +167,13 @@ class LangSmithDataTrace(BaseTraceInstance):
             if node_type == NodeType.LLM:
                 inputs = node_execution.process_data.get("prompts", {}) if node_execution.process_data else {}
             else:
-                inputs = node_execution.inputs if node_execution.inputs else {}
-            outputs = node_execution.outputs if node_execution.outputs else {}
+                inputs = node_execution.inputs or {}
+            outputs = node_execution.outputs or {}
             created_at = node_execution.created_at or datetime.now()
             elapsed_time = node_execution.elapsed_time
             finished_at = created_at + timedelta(seconds=elapsed_time)
 
-            execution_metadata = node_execution.metadata if node_execution.metadata else {}
+            execution_metadata = node_execution.metadata or {}
             node_total_tokens = execution_metadata.get(WorkflowNodeExecutionMetadataKey.TOTAL_TOKENS) or 0
             metadata = {str(key): value for key, value in execution_metadata.items()}
             metadata.update(
@@ -189,7 +188,7 @@ class LangSmithDataTrace(BaseTraceInstance):
                 }
             )
 
-            process_data = node_execution.process_data if node_execution.process_data else {}
+            process_data = node_execution.process_data or {}
 
             if process_data and process_data.get("model_mode") == "chat":
                 run_type = LangSmithRunType.llm
@@ -248,7 +247,7 @@ class LangSmithDataTrace(BaseTraceInstance):
     def message_trace(self, trace_info: MessageTraceInfo):
         # get message file data
         file_list = cast(list[str], trace_info.file_list) or []
-        message_file_data: Optional[MessageFile] = trace_info.message_file_data
+        message_file_data: MessageFile | None = trace_info.message_file_data
         file_url = f"{self.file_base_url}/{message_file_data.url}" if message_file_data else ""
         file_list.append(file_url)
         metadata = trace_info.metadata
@@ -261,7 +260,7 @@ class LangSmithDataTrace(BaseTraceInstance):
         metadata["user_id"] = user_id
 
         if message_data.from_end_user_id:
-            end_user_data: Optional[EndUser] = (
+            end_user_data: EndUser | None = (
                 db.session.query(EndUser).where(EndUser.id == message_data.from_end_user_id).first()
             )
             if end_user_data is not None:
@@ -290,7 +289,7 @@ class LangSmithDataTrace(BaseTraceInstance):
             reference_example_id=None,
             input_attachments={},
             output_attachments={},
-            trace_id=None,
+            trace_id=trace_info.trace_id,
             dotted_order=None,
             parent_run_id=None,
         )
@@ -319,7 +318,7 @@ class LangSmithDataTrace(BaseTraceInstance):
             reference_example_id=None,
             input_attachments={},
             output_attachments={},
-            trace_id=None,
+            trace_id=trace_info.trace_id,
             dotted_order=None,
             id=str(uuid.uuid4()),
         )
@@ -351,7 +350,7 @@ class LangSmithDataTrace(BaseTraceInstance):
             reference_example_id=None,
             input_attachments={},
             output_attachments={},
-            trace_id=None,
+            trace_id=trace_info.trace_id,
             dotted_order=None,
             error="",
             file_list=[],
@@ -381,7 +380,7 @@ class LangSmithDataTrace(BaseTraceInstance):
             reference_example_id=None,
             input_attachments={},
             output_attachments={},
-            trace_id=None,
+            trace_id=trace_info.trace_id,
             dotted_order=None,
             error="",
             file_list=[],
@@ -410,7 +409,7 @@ class LangSmithDataTrace(BaseTraceInstance):
             reference_example_id=None,
             input_attachments={},
             output_attachments={},
-            trace_id=None,
+            trace_id=trace_info.trace_id,
             dotted_order=None,
             error="",
             file_list=[],
@@ -440,7 +439,7 @@ class LangSmithDataTrace(BaseTraceInstance):
             reference_example_id=None,
             input_attachments={},
             output_attachments={},
-            trace_id=None,
+            trace_id=trace_info.trace_id,
             dotted_order=None,
             error=trace_info.error or "",
         )
@@ -465,7 +464,7 @@ class LangSmithDataTrace(BaseTraceInstance):
             reference_example_id=None,
             input_attachments={},
             output_attachments={},
-            trace_id=None,
+            trace_id=trace_info.trace_id,
             dotted_order=None,
             error="",
             file_list=[],
@@ -504,7 +503,7 @@ class LangSmithDataTrace(BaseTraceInstance):
             self.langsmith_client.delete_project(project_name=random_project_name)
             return True
         except Exception as e:
-            logger.debug(f"LangSmith API check failed: {str(e)}")
+            logger.debug("LangSmith API check failed: %s", str(e))
             raise ValueError(f"LangSmith API check failed: {str(e)}")
 
     def get_project_url(self):
@@ -523,5 +522,5 @@ class LangSmithDataTrace(BaseTraceInstance):
             )
             return project_url.split("/r/")[0]
         except Exception as e:
-            logger.debug(f"LangSmith get run url failed: {str(e)}")
+            logger.debug("LangSmith get run url failed: %s", str(e))
             raise ValueError(f"LangSmith get run url failed: {str(e)}")

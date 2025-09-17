@@ -30,7 +30,7 @@ class APIBasedExtensionService:
         return extension_data
 
     @staticmethod
-    def delete(extension_data: APIBasedExtension) -> None:
+    def delete(extension_data: APIBasedExtension):
         db.session.delete(extension_data)
         db.session.commit()
 
@@ -51,7 +51,7 @@ class APIBasedExtensionService:
         return extension
 
     @classmethod
-    def _validation(cls, extension_data: APIBasedExtension) -> None:
+    def _validation(cls, extension_data: APIBasedExtension):
         # name
         if not extension_data.name:
             raise ValueError("name must not be empty")
@@ -95,11 +95,11 @@ class APIBasedExtensionService:
         cls._ping_connection(extension_data)
 
     @staticmethod
-    def _ping_connection(extension_data: APIBasedExtension) -> None:
+    def _ping_connection(extension_data: APIBasedExtension):
         try:
             client = APIBasedExtensionRequestor(extension_data.api_endpoint, extension_data.api_key)
             resp = client.request(point=APIBasedExtensionPoint.PING, params={})
             if resp.get("result") != "pong":
                 raise ValueError(resp)
         except Exception as e:
-            raise ValueError("connection error: {}".format(e))
+            raise ValueError(f"connection error: {e}")

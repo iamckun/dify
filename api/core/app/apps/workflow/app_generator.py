@@ -3,7 +3,7 @@ import logging
 import threading
 import uuid
 from collections.abc import Generator, Mapping, Sequence
-from typing import Any, Literal, Optional, Union, overload
+from typing import Any, Literal, Union, overload
 
 from flask import Flask, current_app
 from pydantic import ValidationError
@@ -53,7 +53,7 @@ class WorkflowAppGenerator(BaseAppGenerator):
         invoke_from: InvokeFrom,
         streaming: Literal[True],
         call_depth: int,
-        workflow_thread_pool_id: Optional[str],
+        workflow_thread_pool_id: str | None,
     ) -> Generator[Mapping | str, None, None]: ...
 
     @overload
@@ -67,7 +67,7 @@ class WorkflowAppGenerator(BaseAppGenerator):
         invoke_from: InvokeFrom,
         streaming: Literal[False],
         call_depth: int,
-        workflow_thread_pool_id: Optional[str],
+        workflow_thread_pool_id: str | None,
     ) -> Mapping[str, Any]: ...
 
     @overload
@@ -81,7 +81,7 @@ class WorkflowAppGenerator(BaseAppGenerator):
         invoke_from: InvokeFrom,
         streaming: bool,
         call_depth: int,
-        workflow_thread_pool_id: Optional[str],
+        workflow_thread_pool_id: str | None,
     ) -> Union[Mapping[str, Any], Generator[Mapping | str, None, None]]: ...
 
     def generate(
@@ -94,7 +94,7 @@ class WorkflowAppGenerator(BaseAppGenerator):
         invoke_from: InvokeFrom,
         streaming: bool = True,
         call_depth: int = 0,
-        workflow_thread_pool_id: Optional[str] = None,
+        workflow_thread_pool_id: str | None = None,
     ) -> Union[Mapping[str, Any], Generator[Mapping | str, None, None]]:
         files: Sequence[Mapping[str, Any]] = args.get("files") or []
 
@@ -200,7 +200,7 @@ class WorkflowAppGenerator(BaseAppGenerator):
         workflow_execution_repository: WorkflowExecutionRepository,
         workflow_node_execution_repository: WorkflowNodeExecutionRepository,
         streaming: bool = True,
-        workflow_thread_pool_id: Optional[str] = None,
+        workflow_thread_pool_id: str | None = None,
         variable_loader: VariableLoader = DUMMY_VARIABLE_LOADER,
     ) -> Union[Mapping[str, Any], Generator[str | Mapping[str, Any], None, None]]:
         """
@@ -434,8 +434,8 @@ class WorkflowAppGenerator(BaseAppGenerator):
         queue_manager: AppQueueManager,
         context: contextvars.Context,
         variable_loader: VariableLoader,
-        workflow_thread_pool_id: Optional[str] = None,
-    ) -> None:
+        workflow_thread_pool_id: str | None = None,
+    ):
         """
         Generate worker in a new thread.
         :param flask_app: Flask app
@@ -483,7 +483,7 @@ class WorkflowAppGenerator(BaseAppGenerator):
             try:
                 runner.run()
             except GenerateTaskStoppedError as e:
-                logger.warning(f"Task stopped: {str(e)}")
+                logger.warning("Task stopped: %s", str(e))
                 pass
             except InvokeAuthorizationError:
                 queue_manager.publish_error(
@@ -540,6 +540,6 @@ class WorkflowAppGenerator(BaseAppGenerator):
                 raise GenerateTaskStoppedError()
             else:
                 logger.exception(
-                    f"Fails to process generate task pipeline, task_id: {application_generate_entity.task_id}"
+                    "Fails to process generate task pipeline, task_id: %s", application_generate_entity.task_id
                 )
                 raise e

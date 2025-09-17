@@ -1,8 +1,9 @@
+import operator
 import traceback
 import typing
 
 import click
-from celery import shared_task  # type: ignore
+from celery import shared_task
 
 from core.helper import marketplace
 from core.helper.marketplace import MarketplacePluginDeclaration
@@ -58,7 +59,7 @@ def process_tenant_plugin_autoupgrade_check_task(
 
         click.echo(
             click.style(
-                "Checking upgradable plugin for tenant: {}".format(tenant_id),
+                f"Checking upgradable plugin for tenant: {tenant_id}",
                 fg="green",
             )
         )
@@ -68,7 +69,7 @@ def process_tenant_plugin_autoupgrade_check_task(
 
         # get plugin_ids to check
         plugin_ids: list[tuple[str, str, str]] = []  # plugin_id, version, unique_identifier
-        click.echo(click.style("Upgrade mode: {}".format(upgrade_mode), fg="green"))
+        click.echo(click.style(f"Upgrade mode: {upgrade_mode}", fg="green"))
 
         if upgrade_mode == TenantPluginAutoUpgradeStrategy.UpgradeMode.PARTIAL and include_plugins:
             all_plugins = manager.list_plugins(tenant_id)
@@ -118,7 +119,7 @@ def process_tenant_plugin_autoupgrade_check_task(
                     current_version = version
                     latest_version = manifest.latest_version
 
-                    def fix_only_checker(latest_version, current_version):
+                    def fix_only_checker(latest_version: str, current_version: str):
                         latest_version_tuple = tuple(int(val) for val in latest_version.split("."))
                         current_version_tuple = tuple(int(val) for val in current_version.split("."))
 
@@ -130,8 +131,7 @@ def process_tenant_plugin_autoupgrade_check_task(
                         return False
 
                     version_checker = {
-                        TenantPluginAutoUpgradeStrategy.StrategySetting.LATEST: lambda latest_version,
-                        current_version: latest_version != current_version,
+                        TenantPluginAutoUpgradeStrategy.StrategySetting.LATEST: operator.ne,
                         TenantPluginAutoUpgradeStrategy.StrategySetting.FIX_ONLY: fix_only_checker,
                     }
 
@@ -142,11 +142,11 @@ def process_tenant_plugin_autoupgrade_check_task(
                         marketplace.record_install_plugin_event(new_unique_identifier)
                         click.echo(
                             click.style(
-                                "Upgrade plugin: {} -> {}".format(original_unique_identifier, new_unique_identifier),
+                                f"Upgrade plugin: {original_unique_identifier} -> {new_unique_identifier}",
                                 fg="green",
                             )
                         )
-                        task_start_resp = manager.upgrade_plugin(
+                        _ = manager.upgrade_plugin(
                             tenant_id,
                             original_unique_identifier,
                             new_unique_identifier,
@@ -156,11 +156,11 @@ def process_tenant_plugin_autoupgrade_check_task(
                             },
                         )
                 except Exception as e:
-                    click.echo(click.style("Error when upgrading plugin: {}".format(e), fg="red"))
+                    click.echo(click.style(f"Error when upgrading plugin: {e}", fg="red"))
                     traceback.print_exc()
                 break
 
     except Exception as e:
-        click.echo(click.style("Error when checking upgradable plugin: {}".format(e), fg="red"))
+        click.echo(click.style(f"Error when checking upgradable plugin: {e}", fg="red"))
         traceback.print_exc()
         return

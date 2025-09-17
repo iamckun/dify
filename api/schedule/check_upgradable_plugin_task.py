@@ -16,11 +16,11 @@ def check_upgradable_plugin_task():
     start_at = time.perf_counter()
 
     now_seconds_of_day = time.time() % 86400 - 30  # we assume the tz is UTC
-    click.echo(click.style("Now seconds of day: {}".format(now_seconds_of_day), fg="green"))
+    click.echo(click.style(f"Now seconds of day: {now_seconds_of_day}", fg="green"))
 
     strategies = (
         db.session.query(TenantPluginAutoUpgradeStrategy)
-        .filter(
+        .where(
             TenantPluginAutoUpgradeStrategy.upgrade_time_of_day >= now_seconds_of_day,
             TenantPluginAutoUpgradeStrategy.upgrade_time_of_day
             < now_seconds_of_day + AUTO_UPGRADE_MINIMAL_CHECKING_INTERVAL,
@@ -43,7 +43,7 @@ def check_upgradable_plugin_task():
     end_at = time.perf_counter()
     click.echo(
         click.style(
-            "Checked upgradable plugin success latency: {}".format(end_at - start_at),
+            f"Checked upgradable plugin success latency: {end_at - start_at}",
             fg="green",
         )
     )

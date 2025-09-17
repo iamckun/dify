@@ -1,5 +1,5 @@
 import os
-from typing import Literal, Optional
+from typing import Literal
 
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_before_delay, wait_fixed
@@ -70,10 +70,10 @@ class BillingService:
         return response.json()
 
     @staticmethod
-    def is_tenant_owner_or_admin(current_user):
+    def is_tenant_owner_or_admin(current_user: Account):
         tenant_id = current_user.current_tenant_id
 
-        join: Optional[TenantAccountJoin] = (
+        join: TenantAccountJoin | None = (
             db.session.query(TenantAccountJoin)
             .where(TenantAccountJoin.tenant_id == tenant_id, TenantAccountJoin.account_id == current_user.id)
             .first()
@@ -123,7 +123,7 @@ class BillingService:
             return BillingService._send_request("GET", "/education/verify", params=params)
 
         @classmethod
-        def is_active(cls, account_id: str):
+        def status(cls, account_id: str):
             params = {"account_id": account_id}
             return BillingService._send_request("GET", "/education/status", params=params)
 
@@ -159,9 +159,9 @@ class BillingService:
     ):
         limiter_key = f"{account_id}:{tenant_id}"
         if cls.compliance_download_rate_limiter.is_rate_limited(limiter_key):
-            from controllers.console.error import CompilanceRateLimitError
+            from controllers.console.error import ComplianceRateLimitError
 
-            raise CompilanceRateLimitError()
+            raise ComplianceRateLimitError()
 
         json = {
             "doc_name": doc_name,

@@ -1,10 +1,10 @@
 import json
 from collections.abc import Mapping, MutableMapping, Sequence
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from core.app.entities.app_invoke_entities import InvokeFrom
 from core.variables import SegmentType, Variable
-from core.variables.consts import MIN_SELECTORS_LENGTH
+from core.variables.consts import SELECTORS_LENGTH
 from core.workflow.constants import CONVERSATION_VARIABLE_NODE_ID
 from core.workflow.conversation_variable_updater import ConversationVariableUpdater
 from core.workflow.entities.node_entities import NodeRunResult
@@ -46,7 +46,7 @@ def _source_mapping_from_item(mapping: MutableMapping[str, Sequence[str]], node_
     selector = item.value
     if not isinstance(selector, list):
         raise InvalidDataError(f"selector is not a list, {node_id=}, {item=}")
-    if len(selector) < MIN_SELECTORS_LENGTH:
+    if len(selector) < SELECTORS_LENGTH:
         raise InvalidDataError(f"selector too short, {node_id=}, {item=}")
     selector_str = ".".join(selector)
     key = f"{node_id}.#{selector_str}#"
@@ -58,10 +58,10 @@ class VariableAssignerNode(BaseNode):
 
     _node_data: VariableAssignerNodeData
 
-    def init_node_data(self, data: Mapping[str, Any]) -> None:
+    def init_node_data(self, data: Mapping[str, Any]):
         self._node_data = VariableAssignerNodeData.model_validate(data)
 
-    def _get_error_strategy(self) -> Optional[ErrorStrategy]:
+    def _get_error_strategy(self) -> ErrorStrategy | None:
         return self._node_data.error_strategy
 
     def _get_retry_config(self) -> RetryConfig:
@@ -70,7 +70,7 @@ class VariableAssignerNode(BaseNode):
     def _get_title(self) -> str:
         return self._node_data.title
 
-    def _get_description(self) -> Optional[str]:
+    def _get_description(self) -> str | None:
         return self._node_data.desc
 
     def _get_default_value_dict(self) -> dict[str, Any]:
